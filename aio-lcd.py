@@ -8,7 +8,9 @@
 import os, time, glob, subprocess
 
 DEV = "/dev/hidraw6"
-CPU_TEMP = "/sys/class/hwmon/hwmon1/temp1_input"  # k10temp Tctl
+# CPU: k10temp (AMD Tctl/Tccd) or coretemp (Intel Package). label picks the die temp.
+CPU_CHIPS = {"k10temp": ("Tctl", "Tccd1"), "coretemp": ("Package id 0",),
+             "zenpower": ("Tdie",)}
 
 def fan_rpm():
     # no native superio module on this kernel -> returns 0.
@@ -21,17 +23,39 @@ def fan_rpm():
     return 0
 
 def cpu_temp():
-    try:
-        return min(99, int(open(CPU_TEMP).read()) // 1000)
-    except Exception:
-        return 0
+    for h in glob.glob("/sys/class/hwmon/hwmon*"):
+        try:
+            name = open(h + "/name").read().strip()
+            if name not in CPU_CHIPS:
+                continue
+            wanted = CPU_CHIPS[name]
+            # prefer labeled sensor; fall back to temp1_input
+            for lf in glob.glob(h + "/temp*_label"):
+                if open(lf).read().strip() in wanted:
+                    tf = lf.replace("_label", "_input")
+                    return min(99, int(open(tf).read()) // 1000)
+            return min(99, int(open(h + "/temp1_input").read()) // 1000)
+        except Exception:
+            pass
+    return 0
 
 def gpu_temp():
+    # AMD (amdgpu) / Intel (i915) expose temp via hwmon
+    for name in ("amdgpu", "i915", "xe"):
+        for h in glob.glob("/sys/class/hwmon/hwmon*"):
+            try:
+                if open(h + "/name").read().strip() != name:
+                    continue
+                for tf in sorted(glob.glob(h + "/temp*_input")):
+                    return min(99, int(open(tf).read()) // 1000)
+            except Exception:
+                pass
+    # NVIDIA
     try:
         out = subprocess.run(
             ["nvidia-smi", "--query-gpu=temperature.gpu", "--format=csv,noheader"],
             capture_output=True, text=True, timeout=2).stdout.strip()
-        return min(99, int(out))
+        return min(99, int(out.splitlines()[0]))
     except Exception:
         return 0
 
