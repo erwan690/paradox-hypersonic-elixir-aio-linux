@@ -1,0 +1,11 @@
+[Unit]
+Description=Paradox AIO LCD feeder
+After=graphical-session.target
+
+[Service]
+ExecStart=/usr/bin/python3 %h/.local/bin/aio-lcd.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target
