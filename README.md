@@ -42,6 +42,17 @@ systemctl --user restart aio-lcd
 systemctl --user stop aio-lcd
 ```
 
+## Tested on
+
+| Component | Detail |
+|-----------|--------|
+| Distro | Debian GNU/Linux 13 (trixie) |
+| Kernel | `6.12.100+deb13-amd64` |
+| CPU | AMD Ryzen 7 7700X (`k10temp`) |
+| Motherboard | MSI MAG B650 TOMAHAWK WIFI (MS-7D75), `nct6687` |
+| GPU | NVIDIA GeForce RTX 3070 (driver 550.163.01) |
+| AIO | Paradox Hypersonic Elixir 360 (`5131:2007`) |
+
 ## Notes
 
 - Device HID index can shift on replug; the driver auto-finds `5131:2007`.
