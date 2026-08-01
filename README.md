@@ -1,29 +1,26 @@
-# Paradox Hypersonic Elixir 360 - Native Linux LCD Driver
+# Paradox Hypersonic Elixir 360 — Linux LCD Driver
 
-Native Linux driver for the Paradox Gaming Hypersonic Elixir 360 AIO cooler LCD.
-Replaces the Windows-only "DT Control" (`LCD-CS.exe`) app - no Wine needed.
+Native Linux feeder for the Paradox Gaming Hypersonic Elixir 360 AIO LCD.
+Replaces the Windows-only **DT Control** (`LCD-CS.exe`) — no Wine.
 
-Feeds CPU temp, GPU temp, and fan RPM to the LCD over raw HID.
+Pushes **CPU temp**, **GPU temp**, and **fan/pump RPM** to the panel over raw USB HID (`5131:2007`) at ~2 Hz (keepalive; the LCD sleeps without refresh).
 
-## Reversed protocol
+## Supported
 
-USB HID device `5131:2007`, 64-byte output report, no report ID:
+| Feature | Backends |
+|---------|----------|
+| AIO LCD | Paradox Hypersonic Elixir 360 (`USB HID 5131:2007`) |
+| CPU temp | AMD: `k10temp` (Tctl/Tccd1), `zenpower` (Tdie) · Intel: `coretemp` (Package id 0) |
+| GPU temp | NVIDIA: `nvidia-smi` · AMD: `amdgpu` hwmon · Intel: `i915` / `xe` hwmon |
+| Fan / pump RPM | Prefer `nct6687` `fan2_input` · else first nonzero `fan*_input` |
+| OS | Linux with `hidraw` + systemd user services |
 
-| Byte | Field |
-|------|-------|
-| 0 | `0xaa` header |
-| 1 | CPU temp (C) |
-| 4 | fan RPM low byte |
-| 5 | fan RPM high byte (16-bit little-endian) |
-| 9 | GPU temp (C) |
+## Requirements
 
-LCD sleeps without periodic refresh, so the driver rewrites at 2 Hz (keepalive).
-
-## Data sources
-
-- CPU temp: `k10temp` (`/sys/class/hwmon/*/temp1_input`)
-- GPU temp: `nvidia-smi`
-- Fan RPM: first `fan*_input` hwmon (needs `nct6xxx` superio module; shows 0 if absent)
+- Python 3
+- User in group that can open the device (udev rule uses `plugdev`)
+- For NVIDIA GPU temp: proprietary driver + `nvidia-smi`
+- For fan RPM on Nuvoton Super I/O boards: `nct6683` (see `nct6683-*.conf` in this repo; MSI often needs `options nct6683 force=1`)
 
 ## Install
 
@@ -31,8 +28,15 @@ LCD sleeps without periodic refresh, so the driver rewrites at 2 Hz (keepalive).
 ./install.sh
 ```
 
-Adds the udev rule (needs sudo), installs the script + systemd user service,
-and starts it. Auto-starts on boot.
+Installs the udev rule (sudo), copies the script to `~/.local/bin`, enables the systemd user unit, and starts it.
+
+Optional — persist the Super I/O module (fan RPM):
+
+```sh
+sudo cp nct6683-modules-load.conf /etc/modules-load.d/nct6683.conf
+sudo cp nct6683-modprobe.conf /etc/modprobe.d/nct6683.conf
+sudo modprobe nct6683
+```
 
 ## Manage
 
@@ -41,6 +45,19 @@ systemctl --user status aio-lcd
 systemctl --user restart aio-lcd
 systemctl --user stop aio-lcd
 ```
+
+## Protocol
+
+64-byte HID output report, **no report ID**:
+
+| Byte | Field |
+|------|-------|
+| 0 | `0xaa` header |
+| 1 | CPU temp (°C) |
+| 4–5 | Fan RPM (uint16 LE) |
+| 9 | GPU temp (°C) |
+
+`hidraw` index can change on replug; the driver re-scans for `5131:2007`.
 
 ## Tested on
 
@@ -53,8 +70,6 @@ systemctl --user stop aio-lcd
 | GPU | NVIDIA GeForce RTX 3070 (driver 550.163.01) |
 | AIO | Paradox Hypersonic Elixir 360 (`5131:2007`) |
 
-## Notes
+## License
 
-- Device HID index can shift on replug; the driver auto-finds `5131:2007`.
-- Fan RPM reads 0 on kernels without a superio (`nct6xxx`) module. Install
-  `lm-sensors` and load the module - the driver picks up `fan*_input` automatically.
+MIT — see [LICENSE](LICENSE).
