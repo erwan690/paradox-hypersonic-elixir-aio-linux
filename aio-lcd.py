@@ -12,12 +12,22 @@ DEV = "/dev/hidraw6"
 CPU_CHIPS = {"k10temp": ("Tctl", "Tccd1"), "coretemp": ("Package id 0",),
              "zenpower": ("Tdie",)}
 
+FAN_CHIP = "nct6687"   # MSI B650 Tomahawk superio (modprobe nct6683 force=1)
+FAN_INPUT = "fan2_input"  # AIO pump
+
 def fan_rpm():
-    # no native superio module on this kernel -> returns 0.
-    # if lm-sensors/nct6xxx added later, first fan*_input is used automatically.
-    for f in glob.glob("/sys/class/hwmon/hwmon*/fan*_input"):
+    for h in glob.glob("/sys/class/hwmon/hwmon*"):
         try:
-            return min(65535, int(open(f).read()))
+            if open(h + "/name").read().strip() == FAN_CHIP:
+                return min(65535, int(open(h + "/" + FAN_INPUT).read()))
+        except Exception:
+            pass
+    # fallback: first nonzero fan
+    for f in sorted(glob.glob("/sys/class/hwmon/hwmon*/fan*_input")):
+        try:
+            v = int(open(f).read())
+            if v > 0:
+                return min(65535, v)
         except Exception:
             pass
     return 0
