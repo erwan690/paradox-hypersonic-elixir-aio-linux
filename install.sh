@@ -170,21 +170,30 @@ sudo cp "$DIR/99-aio-paradox.rules" /etc/udev/rules.d/99-aio-paradox.rules
 sudo udevadm control --reload-rules
 sudo udevadm trigger -c add -s hidraw
 
-echo "[3/5] driver script"
+echo "[3/6] driver + GUI"
 mkdir -p "$HOME/.local/bin"
 cp "$DIR/aio-lcd.py" "$HOME/.local/bin/aio-lcd.py"
-chmod +x "$HOME/.local/bin/aio-lcd.py"
+cp "$DIR/aio-lcd-gui.py" "$HOME/.local/bin/aio-lcd-gui.py"
+chmod +x "$HOME/.local/bin/aio-lcd.py" "$HOME/.local/bin/aio-lcd-gui.py"
 
-echo "[4/5] systemd user service"
+echo "[4/6] desktop entry"
+mkdir -p "$HOME/.local/share/applications"
+cp "$DIR/aio-lcd-gui.desktop" "$HOME/.local/share/applications/aio-lcd-gui.desktop"
+command -v update-desktop-database >/dev/null 2>&1 \
+  && update-desktop-database "$HOME/.local/share/applications" >/dev/null 2>&1 \
+  || true
+
+echo "[5/6] systemd user service"
 mkdir -p "$HOME/.config/systemd/user"
 cp "$DIR/aio-lcd.service" "$HOME/.config/systemd/user/aio-lcd.service"
 systemctl --user daemon-reload
 
-echo "[5/5] enable + start"
+echo "[6/6] enable + start"
 systemctl --user enable --now aio-lcd.service
 systemctl --user restart aio-lcd.service
 systemctl --user is-active aio-lcd.service
 
 echo ""
 echo "done. GPU=$GPU_CHOICE FAN=$FAN_CHOICE"
-echo "reconfigure anytime: edit $CFG && systemctl --user restart aio-lcd"
+echo "GUI: aio-lcd-gui.py   (or launch “Paradox AIO LCD” from the app menu)"
+echo "reconfigure: GUI Settings, or edit $CFG && systemctl --user restart aio-lcd"

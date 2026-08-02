@@ -21,6 +21,7 @@ Pushes **CPU temp**, **GPU temp**, and **fan/pump RPM** to the panel over raw US
 - User in group that can open the device (udev rule uses `plugdev`)
 - For NVIDIA GPU temp: proprietary driver + `nvidia-smi`
 - For fan RPM on Nuvoton Super I/O boards: `nct6683` (see `nct6683-*.conf` in this repo; MSI often needs `options nct6683 force=1`)
+- GUI (optional): GTK 3 + PyGObject (`python3-gi`, `gir1.2-gtk-3.0`). Better tray: `gir1.2-ayatanaappindicator3-0.1`
 
 ## Install
 
@@ -28,7 +29,7 @@ Pushes **CPU temp**, **GPU temp**, and **fan/pump RPM** to the panel over raw US
 ./install.sh
 ```
 
-Prompts for **GPU** and **fan/pump** source, writes `~/.config/aio-lcd.conf`, installs the udev rule (sudo), copies the script to `~/.local/bin`, enables the systemd user unit, and starts it.
+Prompts for **GPU** and **fan/pump** source, writes `~/.config/aio-lcd.conf`, installs the udev rule (sudo), copies the feeder + GUI to `~/.local/bin`, installs a desktop entry, enables the systemd user unit, and starts it.
 
 Non-interactive:
 
@@ -43,7 +44,7 @@ Config values:
 | `GPU` | `auto` · `nvidia:0` · `amdgpu:temp1_input` · `i915:temp1_input` · `xe:temp1_input` |
 | `FAN` | `auto` · `nct6687/fan2_input` |
 
-Reconfigure: edit `~/.config/aio-lcd.conf`, then `systemctl --user restart aio-lcd`.
+Reconfigure via the GUI **Settings**, or edit `~/.config/aio-lcd.conf` then `systemctl --user restart aio-lcd`.
 
 Optional — persist the Super I/O module (fan RPM):
 
@@ -60,6 +61,17 @@ systemctl --user status aio-lcd
 systemctl --user restart aio-lcd
 systemctl --user stop aio-lcd
 ```
+
+### GUI
+
+Tray + window for live CPU/GPU/fan, service Start/Stop/Restart, and GPU/fan source picker.
+
+```sh
+~/.local/bin/aio-lcd-gui.py
+# or: Paradox AIO LCD from the app menu
+```
+
+Closing the window keeps the tray icon; Quit from the tray menu exits the GUI (the feeder service keeps running).
 
 Sensor choice lives in `~/.config/aio-lcd.conf` (not the systemd unit). After editing, restart the service.
 
