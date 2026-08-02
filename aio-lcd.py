@@ -8,14 +8,47 @@
 import os, time, glob, subprocess
 
 DEV = "/dev/hidraw6"
+CFG = os.path.expanduser("~/.config/aio-lcd.conf")
 # CPU: k10temp (AMD Tctl/Tccd) or coretemp (Intel Package). label picks the die temp.
 CPU_CHIPS = {"k10temp": ("Tctl", "Tccd1"), "coretemp": ("Package id 0",),
              "zenpower": ("Tdie",)}
 
+# Defaults (overridden by ~/.config/aio-lcd.conf from install.sh)
 FAN_CHIP = "nct6687"   # MSI B650 Tomahawk superio (modprobe nct6683 force=1)
 FAN_INPUT = "fan2_input"  # AIO pump
+# GPU: "auto" | "nvidia:<index>" | "amdgpu:<tempN_input>" | "i915:..." | "xe:..."
+GPU_SEL = "auto"
+FAN_SEL = "auto"  # "auto" | "<chip>/<fanN_input>"
+
+def load_cfg():
+    global FAN_CHIP, FAN_INPUT, GPU_SEL, FAN_SEL
+    try:
+        for line in open(CFG):
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            k, v = k.strip(), v.strip()
+            if k == "GPU" and v:
+                GPU_SEL = v
+            elif k == "FAN" and v:
+                FAN_SEL = v
+                if v != "auto" and "/" in v:
+                    FAN_CHIP, FAN_INPUT = v.split("/", 1)
+    except Exception:
+        pass
+
+load_cfg()
 
 def fan_rpm():
+    if FAN_SEL != "auto":
+        for h in glob.glob("/sys/class/hwmon/hwmon*"):
+            try:
+                if open(h + "/name").read().strip() == FAN_CHIP:
+                    return min(65535, int(open(h + "/" + FAN_INPUT).read()))
+            except Exception:
+                pass
+        return 0
     for h in glob.glob("/sys/class/hwmon/hwmon*"):
         try:
             if open(h + "/name").read().strip() == FAN_CHIP:
@@ -49,8 +82,41 @@ def cpu_temp():
             pass
     return 0
 
+def _gpu_hwmon(chip, sensor):
+    for h in glob.glob("/sys/class/hwmon/hwmon*"):
+        try:
+            if open(h + "/name").read().strip() != chip:
+                continue
+            return min(99, int(open(h + "/" + sensor).read()) // 1000)
+        except Exception:
+            pass
+    return 0
+
+def _gpu_nvidia(index):
+    try:
+        out = subprocess.run(
+            ["nvidia-smi", "--query-gpu=temperature.gpu", "--format=csv,noheader"],
+            capture_output=True, text=True, timeout=2).stdout.strip()
+        lines = out.splitlines()
+        return min(99, int(lines[index]))
+    except Exception:
+        return 0
+
 def gpu_temp():
-    # AMD (amdgpu) / Intel (i915) expose temp via hwmon
+    if GPU_SEL != "auto":
+        try:
+            kind, rest = GPU_SEL.split(":", 1)
+        except ValueError:
+            return 0
+        if kind == "nvidia":
+            try:
+                return _gpu_nvidia(int(rest))
+            except Exception:
+                return 0
+        if kind in ("amdgpu", "i915", "xe"):
+            return _gpu_hwmon(kind, rest)
+        return 0
+    # auto: AMD/Intel hwmon first, then NVIDIA GPU 0
     for name in ("amdgpu", "i915", "xe"):
         for h in glob.glob("/sys/class/hwmon/hwmon*"):
             try:
@@ -60,14 +126,7 @@ def gpu_temp():
                     return min(99, int(open(tf).read()) // 1000)
             except Exception:
                 pass
-    # NVIDIA
-    try:
-        out = subprocess.run(
-            ["nvidia-smi", "--query-gpu=temperature.gpu", "--format=csv,noheader"],
-            capture_output=True, text=True, timeout=2).stdout.strip()
-        return min(99, int(out.splitlines()[0]))
-    except Exception:
-        return 0
+    return _gpu_nvidia(0)
 
 def find_dev():
     # hidraw index can change across replug; match 5131:2007

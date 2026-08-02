@@ -11,8 +11,8 @@ Pushes **CPU temp**, **GPU temp**, and **fan/pump RPM** to the panel over raw US
 |---------|----------|
 | AIO LCD | Paradox Hypersonic Elixir 360 (`USB HID 5131:2007`) |
 | CPU temp | AMD: `k10temp` (Tctl/Tccd1), `zenpower` (Tdie) · Intel: `coretemp` (Package id 0) |
-| GPU temp | NVIDIA: `nvidia-smi` · AMD: `amdgpu` hwmon · Intel: `i915` / `xe` hwmon |
-| Fan / pump RPM | Prefer `nct6687` `fan2_input` · else first nonzero `fan*_input` |
+| GPU temp | Selected at install · NVIDIA `nvidia-smi` · AMD `amdgpu` · Intel `i915` / `xe` |
+| Fan / pump RPM | Selected at install · default hint `nct6687` `fan2_input` · else first nonzero (`auto`) |
 | OS | Linux with `hidraw` + systemd user services |
 
 ## Requirements
@@ -28,7 +28,22 @@ Pushes **CPU temp**, **GPU temp**, and **fan/pump RPM** to the panel over raw US
 ./install.sh
 ```
 
-Installs the udev rule (sudo), copies the script to `~/.local/bin`, enables the systemd user unit, and starts it.
+Prompts for **GPU** and **fan/pump** source, writes `~/.config/aio-lcd.conf`, installs the udev rule (sudo), copies the script to `~/.local/bin`, enables the systemd user unit, and starts it.
+
+Non-interactive:
+
+```sh
+GPU=nvidia:0 FAN=nct6687/fan2_input ./install.sh
+```
+
+Config values:
+
+| Key | Examples |
+|-----|----------|
+| `GPU` | `auto` · `nvidia:0` · `amdgpu:temp1_input` · `i915:temp1_input` · `xe:temp1_input` |
+| `FAN` | `auto` · `nct6687/fan2_input` |
+
+Reconfigure: edit `~/.config/aio-lcd.conf`, then `systemctl --user restart aio-lcd`.
 
 Optional — persist the Super I/O module (fan RPM):
 
@@ -45,6 +60,8 @@ systemctl --user status aio-lcd
 systemctl --user restart aio-lcd
 systemctl --user stop aio-lcd
 ```
+
+Sensor choice lives in `~/.config/aio-lcd.conf` (not the systemd unit). After editing, restart the service.
 
 ## Protocol
 
