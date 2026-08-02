@@ -21,7 +21,8 @@ Pushes **CPU temp**, **GPU temp**, and **fan/pump RPM** to the panel over raw US
 - User in group that can open the device (udev rule uses `plugdev`)
 - For NVIDIA GPU temp: proprietary driver + `nvidia-smi`
 - For fan RPM on Nuvoton Super I/O boards: `nct6683` (see `nct6683-*.conf` in this repo; MSI often needs `options nct6683 force=1`)
-- GUI (optional): GTK 3 + PyGObject (`python3-gi`, `gir1.2-gtk-3.0`). Better tray: `gir1.2-ayatanaappindicator3-0.1`
+- GUI (optional): GTK 3 + PyGObject (`python3-gi`, `gir1.2-gtk-3.0`)
+- Tray (GNOME / Wayland): `gir1.2-ayatanaappindicator3-0.1` **required** — without it the GUI falls back to `Gtk.StatusIcon`, which is invisible on GNOME 45+ Wayland. Also enable the [AppIndicator](https://extensions.gnome.org/extension/615/appindicator-support/) shell extension (or distro package `gnome-shell-extension-appindicator`)
 
 ## Install
 
@@ -67,11 +68,16 @@ systemctl --user stop aio-lcd
 Tray + window for live CPU/GPU/fan, service Start/Stop/Restart, and GPU/fan source picker.
 
 ```sh
+# Debian/Ubuntu — needed for a visible tray on GNOME Wayland
+sudo apt install gir1.2-ayatanaappindicator3-0.1
+
 ~/.local/bin/aio-lcd-gui.py
 # or: Paradox AIO LCD from the app menu
 ```
 
 Closing the window keeps the tray icon; Quit from the tray menu exits the GUI (the feeder service keeps running).
+
+If the tray icon is missing on GNOME: install the package above, confirm the AppIndicator extension is enabled, then restart the GUI.
 
 Sensor choice lives in `~/.config/aio-lcd.conf` (not the systemd unit). After editing, restart the service.
 

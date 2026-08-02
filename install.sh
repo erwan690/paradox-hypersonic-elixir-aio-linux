@@ -177,8 +177,11 @@ cp "$DIR/aio-lcd-gui.py" "$HOME/.local/bin/aio-lcd-gui.py"
 chmod +x "$HOME/.local/bin/aio-lcd.py" "$HOME/.local/bin/aio-lcd-gui.py"
 
 echo "[4/6] desktop entry"
+# %h is not a valid Exec field code — bake absolute path so app menus work
 mkdir -p "$HOME/.local/share/applications"
-cp "$DIR/aio-lcd-gui.desktop" "$HOME/.local/share/applications/aio-lcd-gui.desktop"
+_gui="$HOME/.local/bin/aio-lcd-gui.py"
+sed "s|^Exec=.*|Exec=$_gui|; s|^TryExec=.*|TryExec=$_gui|" \
+  "$DIR/aio-lcd-gui.desktop" > "$HOME/.local/share/applications/aio-lcd-gui.desktop"
 command -v update-desktop-database >/dev/null 2>&1 \
   && update-desktop-database "$HOME/.local/share/applications" >/dev/null 2>&1 \
   || true

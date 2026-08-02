@@ -2,8 +2,9 @@
 Type=Application
 Name=Paradox AIO LCD
 Comment=Tray control for Paradox Hypersonic Elixir 360 LCD
-Exec=python3 %h/.local/bin/aio-lcd-gui.py
+Exec=aio-lcd-gui.py
+TryExec=aio-lcd-gui.py
 Icon=org.gnome.SystemMonitor
 Terminal=false
-Categories=System;Monitor;HardwareSettings;
-StartupNotify=true
+Categories=System;Monitor;
+StartupNotify=false
