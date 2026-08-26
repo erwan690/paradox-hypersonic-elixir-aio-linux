@@ -18,11 +18,11 @@ Pushes **CPU temp**, **GPU temp**, and **fan/pump RPM** to the panel over raw US
 ## Requirements
 
 - Python 3
-- User in group that can open the device (udev rule uses `plugdev`)
+- Logged-in local session (udev rule uses `TAG+="uaccess"`, so systemd-logind grants the active user an ACL on the device — no group setup)
 - For NVIDIA GPU temp: proprietary driver + `nvidia-smi`
 - For fan RPM on Nuvoton Super I/O boards: `nct6683` (see `nct6683-*.conf` in this repo; MSI often needs `options nct6683 force=1`)
-- GUI (optional): GTK 3 + PyGObject (`python3-gi`, `gir1.2-gtk-3.0`)
-- Tray (GNOME / Wayland): `gir1.2-ayatanaappindicator3-0.1` **required** — without it the GUI falls back to `Gtk.StatusIcon`, which is invisible on GNOME 45+ Wayland. Also enable the [AppIndicator](https://extensions.gnome.org/extension/615/appindicator-support/) shell extension (or distro package `gnome-shell-extension-appindicator`)
+- GUI (optional): GTK 3 + PyGObject — Debian/Ubuntu `python3-gi gir1.2-gtk-3.0` · Fedora `python3-gobject gtk3`
+- Tray (GNOME / Wayland): Ayatana AppIndicator **required** — Debian/Ubuntu `gir1.2-ayatanaappindicator3-0.1` · Fedora `libayatana-appindicator-gtk3`. Without it the GUI falls back to `Gtk.StatusIcon`, which is invisible on GNOME 45+ Wayland. Also enable the [AppIndicator](https://extensions.gnome.org/extension/615/appindicator-support/) shell extension (Debian/Ubuntu `gnome-shell-extension-appindicator` · Fedora `gnome-shell-extension-appindicator`)
 
 ## Install
 
@@ -55,6 +55,15 @@ sudo cp nct6683-modprobe.conf /etc/modprobe.d/nct6683.conf
 sudo modprobe nct6683
 ```
 
+## Uninstall
+
+```sh
+./uninstall.sh            # keeps ~/.config/aio-lcd.conf
+./uninstall.sh --purge    # removes it too
+```
+
+Stops and disables the service, removes the udev rule (sudo), the copies in `~/.local/bin`, and the desktop entry. The `nct6683-*.conf` files under `/etc/modules-load.d` and `/etc/modprobe.d` are left alone — other tools may depend on them.
+
 ## Manage
 
 ```sh
@@ -68,8 +77,9 @@ systemctl --user stop aio-lcd
 Tray + window for live CPU/GPU/fan, service Start/Stop/Restart, and GPU/fan source picker.
 
 ```sh
-# Debian/Ubuntu — needed for a visible tray on GNOME Wayland
-sudo apt install gir1.2-ayatanaappindicator3-0.1
+# needed for a visible tray on GNOME Wayland
+sudo apt install gir1.2-ayatanaappindicator3-0.1   # Debian/Ubuntu
+sudo dnf install libayatana-appindicator-gtk3      # Fedora
 
 ~/.local/bin/aio-lcd-gui.py
 # or: Paradox AIO LCD from the app menu

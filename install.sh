@@ -162,11 +162,13 @@ if [ -z "$FAN_CHOICE" ]; then
 fi
 
 echo ""
-echo "[1/5] write config"
+echo "[1/6] write config"
 write_cfg
 
-echo "[2/5] udev rule (needs sudo)"
-sudo cp "$DIR/99-aio-paradox.rules" /etc/udev/rules.d/99-aio-paradox.rules
+echo "[2/6] udev rule (needs sudo)"
+# must sort before 73-seat-late.rules, which is what applies the uaccess ACL
+sudo rm -f /etc/udev/rules.d/99-aio-paradox.rules   # stale name from earlier installs
+sudo cp "$DIR/60-aio-paradox.rules" /etc/udev/rules.d/60-aio-paradox.rules
 sudo udevadm control --reload-rules
 sudo udevadm trigger -c add -s hidraw
 
