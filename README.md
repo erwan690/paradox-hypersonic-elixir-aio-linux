@@ -30,12 +30,12 @@ Pushes **CPU temp**, **GPU temp**, and **fan/pump RPM** to the panel over raw US
 ./install.sh
 ```
 
-Prompts for **GPU** and **fan/pump** source, writes `~/.config/aio-lcd.conf`, installs the udev rule (sudo), copies the feeder + GUI to `~/.local/bin`, installs a desktop entry, enables the systemd user unit, and starts it.
+Prompts for **GPU** source, **fan/pump** source, and whether to install the **tray GUI**, writes `~/.config/aio-lcd.conf`, installs the udev rule (sudo), copies the feeder to `~/.local/bin`, enables the systemd user unit, and starts it. Answer `n` to the GUI prompt for a headless install — the driver works without it, and any previously installed GUI + desktop entry is removed.
 
 Non-interactive:
 
 ```sh
-GPU=nvidia:0 FAN=nct6687/fan2_input ./install.sh
+GPU=nvidia:0 FAN=nct6687/fan2_input GUI=no ./install.sh
 ```
 
 Config values:

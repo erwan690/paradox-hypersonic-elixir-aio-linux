@@ -4,9 +4,24 @@ set -e
 DIR="$(cd "$(dirname "$0")" && pwd)"
 CFG="$HOME/.config/aio-lcd.conf"
 
-# Optional non-interactive: GPU=nvidia:0 FAN=nct6687/fan2_input ./install.sh
+# Optional non-interactive: GPU=nvidia:0 FAN=nct6687/fan2_input GUI=no ./install.sh
 GPU_CHOICE="${GPU:-}"
 FAN_CHOICE="${FAN:-}"
+GUI_CHOICE="${GUI:-}"
+
+prompt_gui() {
+    echo ""
+    echo "Install the tray GUI? (needs python3-gobject / GTK 3)"
+    while true; do
+        printf "GUI [Y/n]: " >&2
+        read -r _ans || _ans=""
+        case "$_ans" in
+            ""|y|Y|yes|YES) GUI_CHOICE=yes; return ;;
+            n|N|no|NO) GUI_CHOICE=no; return ;;
+            *) echo "  answer y or n" >&2 ;;
+        esac
+    done
+}
 
 prompt_pick() {
     # $1=prompt  $2=default_index(1-based)  $3=max → prints selected 1-based index
@@ -160,6 +175,10 @@ fi
 if [ -z "$FAN_CHOICE" ]; then
     pick_fan
 fi
+if [ -z "$GUI_CHOICE" ]; then
+    prompt_gui
+fi
+case "$GUI_CHOICE" in y|Y|yes|YES|1|true) GUI_CHOICE=yes ;; *) GUI_CHOICE=no ;; esac
 
 echo ""
 echo "[1/6] write config"
@@ -172,18 +191,27 @@ sudo cp "$DIR/60-aio-paradox.rules" /etc/udev/rules.d/60-aio-paradox.rules
 sudo udevadm control --reload-rules
 sudo udevadm trigger -c add -s hidraw
 
-echo "[3/6] driver + GUI"
+echo "[3/6] driver"
 mkdir -p "$HOME/.local/bin"
 cp "$DIR/aio-lcd.py" "$HOME/.local/bin/aio-lcd.py"
-cp "$DIR/aio-lcd-gui.py" "$HOME/.local/bin/aio-lcd-gui.py"
-chmod +x "$HOME/.local/bin/aio-lcd.py" "$HOME/.local/bin/aio-lcd-gui.py"
+chmod +x "$HOME/.local/bin/aio-lcd.py"
 
-echo "[4/6] desktop entry"
-# %h is not a valid Exec field code — bake absolute path so app menus work
-mkdir -p "$HOME/.local/share/applications"
+echo "[4/6] GUI + desktop entry"
 _gui="$HOME/.local/bin/aio-lcd-gui.py"
-sed "s|^Exec=.*|Exec=$_gui|; s|^TryExec=.*|TryExec=$_gui|" \
-  "$DIR/aio-lcd-gui.desktop" > "$HOME/.local/share/applications/aio-lcd-gui.desktop"
+_desktop="$HOME/.local/share/applications/aio-lcd-gui.desktop"
+if [ "$GUI_CHOICE" = yes ]; then
+    cp "$DIR/aio-lcd-gui.py" "$_gui"
+    chmod +x "$_gui"
+    # %h is not a valid Exec field code — bake absolute path so app menus work
+    mkdir -p "$HOME/.local/share/applications"
+    sed "s|^Exec=.*|Exec=$_gui|; s|^TryExec=.*|TryExec=$_gui|" \
+      "$DIR/aio-lcd-gui.desktop" > "$_desktop"
+    python3 -c 'import gi; gi.require_version("Gtk","3.0")' 2>/dev/null \
+      || echo "  warning: GTK 3 python bindings missing — install python3-gobject"
+else
+    rm -f "$_gui" "$_desktop"   # drop leftovers from an earlier GUI install
+    echo "  skipped (GUI=no)"
+fi
 command -v update-desktop-database >/dev/null 2>&1 \
   && update-desktop-database "$HOME/.local/share/applications" >/dev/null 2>&1 \
   || true
@@ -199,6 +227,10 @@ systemctl --user restart aio-lcd.service
 systemctl --user is-active aio-lcd.service
 
 echo ""
-echo "done. GPU=$GPU_CHOICE FAN=$FAN_CHOICE"
-echo "GUI: aio-lcd-gui.py   (or launch “Paradox AIO LCD” from the app menu)"
+echo "done. GPU=$GPU_CHOICE FAN=$FAN_CHOICE GUI=$GUI_CHOICE"
+if [ "$GUI_CHOICE" = yes ]; then
+    echo "GUI: aio-lcd-gui.py   (or launch “Paradox AIO LCD” from the app menu)"
+else
+    echo "GUI not installed — rerun ./install.sh and answer y, or GUI=yes ./install.sh"
+fi
 echo "reconfigure: GUI Settings, or edit $CFG && systemctl --user restart aio-lcd"
