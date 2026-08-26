@@ -4,6 +4,7 @@ import glob
 import importlib.util
 import os
 import subprocess
+import sys
 
 import gi
 
@@ -13,6 +14,7 @@ from gi.repository import Gtk, GLib  # noqa: E402
 UNIT = "aio-lcd.service"
 CFG = os.path.expanduser("~/.config/aio-lcd.conf")
 ICON = "org.gnome.SystemMonitor"
+APP_ID = "io.github.paradox.AioLcd"
 
 
 def _load_feeder():
@@ -258,11 +260,19 @@ class MainWindow(Gtk.Window):
         self.fan_lbl.set_text(f"Fan:  {rpm} RPM")
 
 
-class App:
+class App(Gtk.Application):
     def __init__(self):
-        self.window = MainWindow(self)
+        super().__init__(application_id=APP_ID)
+        self.window = None
         self.indicator = None
         self.status_icon = None
+
+    def do_activate(self):
+        if self.window is not None:  # second launch: raise the running one
+            self.show_window()
+            return
+        self.window = MainWindow(self)
+        self.add_window(self.window)
         self._init_tray()
         self.window.show_all()
         GLib.timeout_add_seconds(1, self._tick)
@@ -301,7 +311,7 @@ class App:
             ("Start service", self.svc_start),
             ("Stop service", self.svc_stop),
             ("Restart service", self.svc_restart),
-            ("Quit", self.quit),
+            ("Quit", self.on_quit),
         )
         for label, cb in items:
             item = Gtk.MenuItem(label=label)
@@ -337,8 +347,8 @@ class App:
     def svc_restart(self, *_a):
         systemctl("restart", UNIT)
 
-    def quit(self, *_a):
-        Gtk.main_quit()
+    def on_quit(self, *_a):
+        self.window.destroy()
 
     def _tick(self):
         try:
@@ -357,10 +367,10 @@ class App:
 
 
 def main():
-    # single instance via display name is enough for this tool
-    App()
-    Gtk.main()
+    # Gtk.Application gives D-Bus single-instance: relaunching presents the
+    # running window instead of starting a second tray icon.
+    return App().run(sys.argv)
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
