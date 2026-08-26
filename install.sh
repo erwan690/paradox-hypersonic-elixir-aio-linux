@@ -172,6 +172,29 @@ EOF
 if [ -z "$GPU_CHOICE" ]; then
     pick_gpu
 fi
+# No fan sensors at all → superio driver not loaded (common after a kernel/driver update,
+# since a manual `modprobe` does not survive reboot).
+# ponytail: assumes a Nuvoton board; other superio chips need it87/etc loaded by hand.
+if [ -z "$FAN_CHOICE" ] && ! ls /sys/class/hwmon/hwmon*/fan*_input >/dev/null 2>&1; then
+    echo ""
+    echo "No fan/pump sensors found. The nct6683 superio driver is probably not loaded."
+    echo "This installs (with sudo):"
+    echo "  /etc/modprobe.d/nct6683.conf      → options nct6683 force=1"
+    echo "  /etc/modules-load.d/nct6683.conf  → load nct6683 at every boot"
+    echo "and runs 'modprobe nct6683 force=1' now."
+    printf "Install superio driver? [Y/n]: " >&2
+    read -r _ans || _ans=""
+    case "$_ans" in
+        ""|y|Y|yes|YES)
+            sudo cp "$DIR/nct6683-modprobe.conf" /etc/modprobe.d/nct6683.conf
+            sudo cp "$DIR/nct6683-modules-load.conf" /etc/modules-load.d/nct6683.conf
+            sudo modprobe nct6683 force=1 || echo "  modprobe failed — board may not be Nuvoton"
+            sleep 1
+            ;;
+        *) echo "  skipped — fan RPM will read 0" ;;
+    esac
+fi
+
 if [ -z "$FAN_CHOICE" ]; then
     pick_fan
 fi
