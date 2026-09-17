@@ -18,9 +18,11 @@ Pushes **CPU temp**, **GPU temp**, and **fan/pump RPM** to the panel over raw US
 ## Requirements
 
 - Python 3
-- User in group that can open the device (udev rule uses `plugdev`)
+- Logged-in local session (udev rule uses `TAG+="uaccess"`, so systemd-logind grants the active user an ACL on the device — no group setup)
 - For NVIDIA GPU temp: proprietary driver + `nvidia-smi`
 - For fan RPM on Nuvoton Super I/O boards: `nct6683` (see `nct6683-*.conf` in this repo; MSI often needs `options nct6683 force=1`)
+- GUI (optional): GTK 3 + PyGObject — Debian/Ubuntu `python3-gi gir1.2-gtk-3.0` · Fedora `python3-gobject gtk3`
+- Tray (GNOME / Wayland): Ayatana AppIndicator **required** — Debian/Ubuntu `gir1.2-ayatanaappindicator3-0.1` · Fedora `libayatana-appindicator-gtk3`. Without it the GUI falls back to `Gtk.StatusIcon`, which is invisible on GNOME 45+ Wayland. Also enable the [AppIndicator](https://extensions.gnome.org/extension/615/appindicator-support/) shell extension (Debian/Ubuntu `gnome-shell-extension-appindicator` · Fedora `gnome-shell-extension-appindicator`)
 
 ## Install
 
@@ -28,12 +30,12 @@ Pushes **CPU temp**, **GPU temp**, and **fan/pump RPM** to the panel over raw US
 ./install.sh
 ```
 
-Prompts for **GPU** and **fan/pump** source, writes `~/.config/aio-lcd.conf`, installs the udev rule (sudo), copies the script to `~/.local/bin`, enables the systemd user unit, and starts it.
+Prompts for **GPU** source, **fan/pump** source, and whether to install the **tray GUI**, writes `~/.config/aio-lcd.conf`, installs the udev rule (sudo), copies the feeder to `~/.local/bin`, enables the systemd user unit, and starts it. Answer `n` to the GUI prompt for a headless install — the driver works without it, and any previously installed GUI + desktop entry is removed.
 
 Non-interactive:
 
 ```sh
-GPU=nvidia:0 FAN=nct6687/fan2_input ./install.sh
+GPU=nvidia:0 FAN=nct6687/fan2_input GUI=no ./install.sh
 ```
 
 Config values:
@@ -43,7 +45,7 @@ Config values:
 | `GPU` | `auto` · `nvidia:0` · `amdgpu:temp1_input` · `i915:temp1_input` · `xe:temp1_input` |
 | `FAN` | `auto` · `nct6687/fan2_input` |
 
-Reconfigure: edit `~/.config/aio-lcd.conf`, then `systemctl --user restart aio-lcd`.
+Reconfigure via the GUI **Settings**, or edit `~/.config/aio-lcd.conf` then `systemctl --user restart aio-lcd`.
 
 Optional — persist the Super I/O module (fan RPM):
 
@@ -53,6 +55,15 @@ sudo cp nct6683-modprobe.conf /etc/modprobe.d/nct6683.conf
 sudo modprobe nct6683
 ```
 
+## Uninstall
+
+```sh
+./uninstall.sh            # keeps ~/.config/aio-lcd.conf
+./uninstall.sh --purge    # removes it too
+```
+
+Stops and disables the service, removes the udev rule (sudo), the copies in `~/.local/bin`, and the desktop entry. The `nct6683-*.conf` files under `/etc/modules-load.d` and `/etc/modprobe.d` are left alone — other tools may depend on them.
+
 ## Manage
 
 ```sh
@@ -60,6 +71,23 @@ systemctl --user status aio-lcd
 systemctl --user restart aio-lcd
 systemctl --user stop aio-lcd
 ```
+
+### GUI
+
+Tray + window for live CPU/GPU/fan, service Start/Stop/Restart, and GPU/fan source picker.
+
+```sh
+# needed for a visible tray on GNOME Wayland
+sudo apt install gir1.2-ayatanaappindicator3-0.1   # Debian/Ubuntu
+sudo dnf install libayatana-appindicator-gtk3      # Fedora
+
+~/.local/bin/aio-lcd-gui.py
+# or: Paradox AIO LCD from the app menu
+```
+
+Closing the window keeps the tray icon; Quit from the tray menu exits the GUI (the feeder service keeps running).
+
+If the tray icon is missing on GNOME: install the package above, confirm the AppIndicator extension is enabled, then restart the GUI.
 
 Sensor choice lives in `~/.config/aio-lcd.conf` (not the systemd unit). After editing, restart the service.
 

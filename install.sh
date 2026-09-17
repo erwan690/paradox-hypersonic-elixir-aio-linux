@@ -4,9 +4,24 @@ set -e
 DIR="$(cd "$(dirname "$0")" && pwd)"
 CFG="$HOME/.config/aio-lcd.conf"
 
-# Optional non-interactive: GPU=nvidia:0 FAN=nct6687/fan2_input ./install.sh
+# Optional non-interactive: GPU=nvidia:0 FAN=nct6687/fan2_input GUI=no ./install.sh
 GPU_CHOICE="${GPU:-}"
 FAN_CHOICE="${FAN:-}"
+GUI_CHOICE="${GUI:-}"
+
+prompt_gui() {
+    echo ""
+    echo "Install the tray GUI? (needs python3-gobject / GTK 3)"
+    while true; do
+        printf "GUI [Y/n]: " >&2
+        read -r _ans || _ans=""
+        case "$_ans" in
+            ""|y|Y|yes|YES) GUI_CHOICE=yes; return ;;
+            n|N|no|NO) GUI_CHOICE=no; return ;;
+            *) echo "  answer y or n" >&2 ;;
+        esac
+    done
+}
 
 prompt_pick() {
     # $1=prompt  $2=default_index(1-based)  $3=max → prints selected 1-based index
@@ -157,34 +172,88 @@ EOF
 if [ -z "$GPU_CHOICE" ]; then
     pick_gpu
 fi
+# No fan sensors at all → superio driver not loaded (common after a kernel/driver update,
+# since a manual `modprobe` does not survive reboot).
+# ponytail: assumes a Nuvoton board; other superio chips need it87/etc loaded by hand.
+if [ -z "$FAN_CHOICE" ] && ! ls /sys/class/hwmon/hwmon*/fan*_input >/dev/null 2>&1; then
+    echo ""
+    echo "No fan/pump sensors found. The nct6683 superio driver is probably not loaded."
+    echo "This installs (with sudo):"
+    echo "  /etc/modprobe.d/nct6683.conf      → options nct6683 force=1"
+    echo "  /etc/modules-load.d/nct6683.conf  → load nct6683 at every boot"
+    echo "and runs 'modprobe nct6683 force=1' now."
+    printf "Install superio driver? [Y/n]: " >&2
+    read -r _ans || _ans=""
+    case "$_ans" in
+        ""|y|Y|yes|YES)
+            sudo cp "$DIR/nct6683-modprobe.conf" /etc/modprobe.d/nct6683.conf
+            sudo cp "$DIR/nct6683-modules-load.conf" /etc/modules-load.d/nct6683.conf
+            sudo modprobe nct6683 force=1 || echo "  modprobe failed — board may not be Nuvoton"
+            sleep 1
+            ;;
+        *) echo "  skipped — fan RPM will read 0" ;;
+    esac
+fi
+
 if [ -z "$FAN_CHOICE" ]; then
     pick_fan
 fi
+if [ -z "$GUI_CHOICE" ]; then
+    prompt_gui
+fi
+case "$GUI_CHOICE" in y|Y|yes|YES|1|true) GUI_CHOICE=yes ;; *) GUI_CHOICE=no ;; esac
 
 echo ""
-echo "[1/5] write config"
+echo "[1/6] write config"
 write_cfg
 
-echo "[2/5] udev rule (needs sudo)"
-sudo cp "$DIR/99-aio-paradox.rules" /etc/udev/rules.d/99-aio-paradox.rules
+echo "[2/6] udev rule (needs sudo)"
+# must sort before 73-seat-late.rules, which is what applies the uaccess ACL
+sudo rm -f /etc/udev/rules.d/99-aio-paradox.rules   # stale name from earlier installs
+sudo cp "$DIR/60-aio-paradox.rules" /etc/udev/rules.d/60-aio-paradox.rules
 sudo udevadm control --reload-rules
 sudo udevadm trigger -c add -s hidraw
 
-echo "[3/5] driver script"
+echo "[3/6] driver"
 mkdir -p "$HOME/.local/bin"
 cp "$DIR/aio-lcd.py" "$HOME/.local/bin/aio-lcd.py"
 chmod +x "$HOME/.local/bin/aio-lcd.py"
 
-echo "[4/5] systemd user service"
+echo "[4/6] GUI + desktop entry"
+_gui="$HOME/.local/bin/aio-lcd-gui.py"
+_desktop="$HOME/.local/share/applications/aio-lcd-gui.desktop"
+if [ "$GUI_CHOICE" = yes ]; then
+    cp "$DIR/aio-lcd-gui.py" "$_gui"
+    chmod +x "$_gui"
+    # %h is not a valid Exec field code — bake absolute path so app menus work
+    mkdir -p "$HOME/.local/share/applications"
+    sed "s|^Exec=.*|Exec=$_gui|; s|^TryExec=.*|TryExec=$_gui|" \
+      "$DIR/aio-lcd-gui.desktop" > "$_desktop"
+    python3 -c 'import gi; gi.require_version("Gtk","3.0")' 2>/dev/null \
+      || echo "  warning: GTK 3 python bindings missing — install python3-gobject"
+else
+    rm -f "$_gui" "$_desktop"   # drop leftovers from an earlier GUI install
+    echo "  skipped (GUI=no)"
+fi
+command -v update-desktop-database >/dev/null 2>&1 \
+  && update-desktop-database "$HOME/.local/share/applications" >/dev/null 2>&1 \
+  || true
+
+echo "[5/6] systemd user service"
 mkdir -p "$HOME/.config/systemd/user"
 cp "$DIR/aio-lcd.service" "$HOME/.config/systemd/user/aio-lcd.service"
 systemctl --user daemon-reload
 
-echo "[5/5] enable + start"
+echo "[6/6] enable + start"
 systemctl --user enable --now aio-lcd.service
 systemctl --user restart aio-lcd.service
 systemctl --user is-active aio-lcd.service
 
 echo ""
-echo "done. GPU=$GPU_CHOICE FAN=$FAN_CHOICE"
-echo "reconfigure anytime: edit $CFG && systemctl --user restart aio-lcd"
+echo "done. GPU=$GPU_CHOICE FAN=$FAN_CHOICE GUI=$GUI_CHOICE"
+if [ "$GUI_CHOICE" = yes ]; then
+    echo "GUI: aio-lcd-gui.py   (or launch “Paradox AIO LCD” from the app menu)"
+else
+    echo "GUI not installed — rerun ./install.sh and answer y, or GUI=yes ./install.sh"
+fi
+echo "reconfigure: GUI Settings, or edit $CFG && systemctl --user restart aio-lcd"
