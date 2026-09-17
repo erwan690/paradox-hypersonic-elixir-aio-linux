@@ -1,0 +1,40 @@
+Name:           aio-lcd
+Version:        @VERSION@
+Release:        1%{?dist}
+Summary:        Native Linux LCD feeder for Paradox Hypersonic Elixir 360 AIO
+License:        MIT
+URL:            https://github.com/erwan690/paradox-hypersonic-elixir-aio-linux
+BuildArch:      noarch
+
+Requires:       python3
+Recommends:     python3-gobject
+Recommends:     gtk3
+Recommends:     libayatana-appindicator-gtk3
+
+%description
+Pushes CPU temp, GPU temp and fan/pump RPM to the AIO LCD panel over raw USB
+HID (5131:2007), replacing the Windows-only DT Control application. Ships a
+systemd user service and an optional GTK tray GUI.
+
+%install
+sh @SRCDIR@/packaging/stage.sh %{buildroot}
+
+%post
+udevadm control --reload-rules 2>/dev/null || true
+udevadm trigger -c add -s hidraw 2>/dev/null || true
+
+%postun
+udevadm control --reload-rules 2>/dev/null || true
+
+%files
+%license %{_datadir}/licenses/aio-lcd/LICENSE
+%doc %{_datadir}/doc/aio-lcd
+%{_bindir}/aio-lcd
+%{_bindir}/aio-lcd-gui
+%{_prefix}/lib/udev/rules.d/60-aio-paradox.rules
+%{_prefix}/lib/systemd/user/aio-lcd.service
+%{_datadir}/applications/aio-lcd-gui.desktop
+
+%changelog
+* Thu Sep 17 2026 erwan690 <noreply@github.com> - @VERSION@-1
+- Initial package

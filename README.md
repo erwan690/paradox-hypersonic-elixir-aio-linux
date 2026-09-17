@@ -26,6 +26,34 @@ Pushes **CPU temp**, **GPU temp**, and **fan/pump RPM** to the panel over raw US
 
 ## Install
 
+### Packages (Debian/Ubuntu, Fedora/RHEL)
+
+Grab `.deb` or `.rpm` from [Releases](https://github.com/erwan690/paradox-hypersonic-elixir-aio-linux/releases):
+
+```sh
+sudo apt install ./aio-lcd_0.1.0_all.deb     # Debian/Ubuntu
+sudo dnf install ./aio-lcd-0.1.0-1.noarch.rpm # Fedora/RHEL
+```
+
+The package installs `/usr/bin/aio-lcd`, `/usr/bin/aio-lcd-gui`, the udev rule and a
+systemd **user** unit. Packages cannot enable a user service for you — do it once per user:
+
+```sh
+systemctl --user enable --now aio-lcd.service
+```
+
+Then pick sensors in the GUI **Settings**, or write `~/.config/aio-lcd.conf` by hand (see the
+config table below). Without a config the feeder falls back to `auto` sources.
+
+Build the packages yourself (needs `dpkg-deb` / `rpmbuild`):
+
+```sh
+packaging/deb.sh 0.1.0
+packaging/rpm.sh 0.1.0   # → dist/
+```
+
+### From source
+
 ```sh
 ./install.sh
 ```

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # Paradox Hypersonic Elixir 360 AIO LCD — tray + settings GUI
 import glob
+import importlib.machinery
 import importlib.util
 import os
 import subprocess
@@ -19,10 +20,16 @@ APP_ID = "io.github.paradox.AioLcd"
 
 def _load_feeder():
     here = os.path.dirname(os.path.abspath(__file__))
+    # "aio-lcd" (no suffix) is the packaged name installed next to this script
     for path in (os.path.join(here, "aio-lcd.py"),
+                 os.path.join(here, "aio-lcd"),
                  os.path.expanduser("~/.local/bin/aio-lcd.py")):
         if os.path.isfile(path):
-            spec = importlib.util.spec_from_file_location("aio_lcd", path)
+            # explicit loader: spec_from_file_location returns None for the
+            # packaged, extension-less /usr/bin/aio-lcd
+            spec = importlib.util.spec_from_file_location(
+                "aio_lcd", path,
+                loader=importlib.machinery.SourceFileLoader("aio_lcd", path))
             mod = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(mod)
             return mod
